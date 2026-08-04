@@ -83,6 +83,19 @@ test("bumps Cassandra from its native Go source directory", () => {
   assert.deepEqual(result.nativeModules, ["cassandra"]);
 });
 
+test("bumps Neo4j from its native Go source directory", () => {
+  const result = evaluateAgentVersionBump({
+    versions: { neo4j: "0.1.39" },
+    changedFiles: ["agents/drivers/neo4j-go/main.go"],
+    moduleExists: (path) => path === "agents/drivers/neo4j-go",
+    readModuleFile: () => "",
+  });
+
+  assert.equal(result.versions.neo4j, "0.1.40");
+  assert.deepEqual(result.javaModules, []);
+  assert.deepEqual(result.nativeModules, ["neo4j"]);
+});
+
 test("builds a manually versioned module even without runtime file changes", () => {
   const result = evaluateAgentVersionBump({
     versions: { duckdb: "0.1.1" },

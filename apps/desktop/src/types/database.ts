@@ -69,6 +69,7 @@ export type DatabaseType =
   | "influxdb3"
   | "jdbc"
   | "mq"
+  | "mqtt"
   | "nacos";
 
 export function isElasticsearchCompatibleDatabaseType(dbType?: DatabaseType): boolean {
@@ -822,7 +823,8 @@ export type TreeNodeType =
   | "mongo-collection"
   | "vector-database"
   | "vector-collection"
-  | "elasticsearch-index";
+  | "elasticsearch-index"
+  | "mqtt-topic";
 
 export interface ConnectionGroup {
   id: string;
@@ -1009,6 +1011,7 @@ export interface QueryTab {
     | "etcd-access-control"
     | "zookeeper"
     | "mq"
+    | "mqtt"
     | "nacos"
     | "nacos-dashboard"
     | "objects"
@@ -1022,6 +1025,7 @@ export interface QueryTab {
   hbaseCreateTableOnOpen?: boolean;
   mqTenant?: string;
   mqInitialTab?: "topics";
+  mqttInitialTopic?: string;
   nacosNamespace?: string;
   nacosNamespaceName?: string;
   nacosTargetDataId?: string;

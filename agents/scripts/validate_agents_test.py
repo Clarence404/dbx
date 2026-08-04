@@ -140,6 +140,7 @@ class ValidateAgentsTest(unittest.TestCase):
                 "cassandra-go",
                 "oracle-go",
                 "kingbase-go",
+                "neo4j-go",
                 "vastbase-go",
                 "xugu",
                 "duckdb",
@@ -148,7 +149,7 @@ class ValidateAgentsTest(unittest.TestCase):
             ):
                 (root / "drivers" / driver).mkdir(parents=True)
             (root / "versions.json").write_text(
-                json.dumps({"h2": "0.1.0", "cassandra": "0.1.0", "oracle": "0.1.0", "kingbase": "0.1.0", "vastbase": "0.1.0", "xugu": "0.1.0", "rabbitmq": "0.1.0", "tdengine": "0.1.0"}),
+                json.dumps({"h2": "0.1.0", "cassandra": "0.1.0", "oracle": "0.1.0", "kingbase": "0.1.0", "neo4j": "0.1.0", "vastbase": "0.1.0", "xugu": "0.1.0", "rabbitmq": "0.1.0", "tdengine": "0.1.0"}),
                 encoding="utf-8",
             )
 

@@ -33,7 +33,7 @@ DBX 的 Agent 驱动 —— 通过 JDBC 和原生数据库驱动支持各种数�
 | hive | Apache Hive | Hive JDBC |
 | db2 | IBM DB2 | DB2 JDBC |
 | informix | IBM Informix | Informix JDBC |
-| neo4j | Neo4j | Neo4j JDBC |
+| neo4j | Neo4j | 官方 Neo4j Go Driver 原生 Agent |
 | cassandra | Apache Cassandra 2.1+ | Apache cassandra-gocql-driver 原生 Agent |
 | bigquery | Google BigQuery | BigQuery JDBC |
 | kylin | Apache Kylin | Kylin JDBC |

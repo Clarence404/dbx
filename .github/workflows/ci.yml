@@ -554,7 +554,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version: "1.24.x"
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@1.97.1
@@ -601,6 +601,10 @@ jobs:
         run: go test ./...
         working-directory: agents/drivers/vastbase-go
 
+      - name: Neo4j native agent tests
+        run: go test ./...
+        working-directory: agents/drivers/neo4j-go
+
       - name: Oracle native agent build
         run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /tmp/dbx-agent-oracle-linux-x64 .
         working-directory: agents/drivers/oracle-go
@@ -620,6 +624,10 @@ jobs:
       - name: Vastbase native agent build
         run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /tmp/dbx-agent-vastbase-linux-x64 .
         working-directory: agents/drivers/vastbase-go
+
+      - name: Neo4j native agent build
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /tmp/dbx-agent-neo4j-linux-x64 .
+        working-directory: agents/drivers/neo4j-go
 
       - name: TDengine native agent build
         run: cargo build --manifest-path drivers/tdengine/Cargo.toml --locked --release --bin dbx-tdengine-driver

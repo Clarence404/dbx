@@ -1491,6 +1491,8 @@ async fn do_execute_typed(
         PoolKind::Redis(_) => Err("Use Redis-specific commands".to_string()),
         PoolKind::MongoDb(_) => Err(MONGO_SHELL_COMMAND_HINT.to_string()),
         PoolKind::MessageQueue => Err("Use Message Queue-specific commands".to_string()),
+        #[cfg(feature = "mq-admin")]
+        PoolKind::Mqtt(_) => Err("Use MQTT-specific commands".to_string()),
         PoolKind::Nacos => Err("Use Nacos-specific commands".to_string()),
         PoolKind::InfluxDb(client) => {
             let client = client.clone();
@@ -2802,6 +2804,8 @@ fn pool_kind_has_transactional_path(pool: &PoolKind) -> bool {
         | PoolKind::InfluxDb(_)
         | PoolKind::InfluxDb3(_)
         | PoolKind::ExternalDriver { .. } => false,
+        #[cfg(feature = "mq-admin")]
+        PoolKind::Mqtt(_) => false,
     }
 }
 
@@ -3034,6 +3038,8 @@ pub async fn execute_statements_in_transaction_on_pool_typed(
             }
             PoolKind::Agent(client) => TxPath::Agent(client.clone()),
             PoolKind::MessageQueue | PoolKind::Nacos | PoolKind::HBase(_) => TxPath::None,
+            #[cfg(feature = "mq-admin")]
+            PoolKind::Mqtt(_) => TxPath::None,
             PoolKind::DuckDbWorker(_)
             | PoolKind::Redis(_)
             | PoolKind::MongoDb(_)
