@@ -1042,6 +1042,16 @@ export async function getSqlServerColumnMetadata(connectionId: string, database:
   });
 }
 
+export interface TableColumnsResult {
+  table_name: string;
+  columns: ColumnInfo[];
+  error?: string;
+}
+
+export async function getAllColumns(connectionId: string, database: string, schema: string): Promise<TableColumnsResult[]> {
+  return invoke("get_all_columns", { connectionId, database, schema });
+}
+
 export async function listDataTypes(connectionId: string, database: string): Promise<string[]> {
   return invoke("list_data_types", { connectionId, database });
 }
@@ -2885,8 +2895,8 @@ export async function vectorListCollections(connectionId: string, database?: str
   return documentListCollections(connectionId, database || "default");
 }
 
-export async function mongoFindDocuments(connectionId: string, database: string, collection: string, skip: number, limit: number, filter?: string, projection?: string, sort?: string, executionId?: string): Promise<MongoDocumentResult> {
-  return documentFindDocuments(connectionId, database, collection, skip, limit, filter, projection, sort, executionId);
+export async function mongoFindDocuments(connectionId: string, database: string, collection: string, skip: number, limit: number, filter?: string, projection?: string, sort?: string, collation?: string, executionId?: string): Promise<MongoDocumentResult> {
+  return documentFindDocuments(connectionId, database, collection, skip, limit, filter, projection, sort, collation, executionId);
 }
 
 export async function mongoFindOne(connectionId: string, database: string, collection: string, filter?: string, projection?: string, options?: string, executionId?: string): Promise<MongoDocumentResult> {
@@ -2906,7 +2916,7 @@ export async function mongoParseShellCommand(source: string): Promise<MongoComma
   return normalizeRustMongoCommand(raw);
 }
 
-export async function documentFindDocuments(connectionId: string, database: string, collection: string, skip: number, limit: number, filter?: string, projection?: string, sort?: string, executionId?: string): Promise<DocumentQueryResult> {
+export async function documentFindDocuments(connectionId: string, database: string, collection: string, skip: number, limit: number, filter?: string, projection?: string, sort?: string, collation?: string, executionId?: string): Promise<DocumentQueryResult> {
   return invoke("document_find_documents", {
     connectionId,
     database,
@@ -2916,6 +2926,7 @@ export async function documentFindDocuments(connectionId: string, database: stri
     filter,
     projection,
     sort,
+    collation,
     executionId,
   });
 }

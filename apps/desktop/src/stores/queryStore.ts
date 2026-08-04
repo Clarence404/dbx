@@ -42,9 +42,10 @@ import { dataTabExecutionDatabase } from "@/lib/table/dataTabExecutionDatabase";
 import { tableOpenPageLimit } from "@/lib/table/tableOpenPageLimit";
 import { getCachedTableMetadata, loadTableIndexes, loadTableMetadata, type TableMetadataRequest } from "@/lib/metadata/tableMetadataCache";
 import { buildTableSelectSql, quoteTableDataIdentifier } from "@/lib/table/tableSelectSql";
-import { connectionQueryExecutionSchema, connectionUsesDatabaseObjectTreeMode, effectiveDatabaseTypeForConnection, metadataSchemaForConnection } from "@/lib/database/jdbcDialect";
+import { connectionObjectTreeNodeSchema, connectionQueryExecutionSchema, connectionUsesDatabaseObjectTreeMode, effectiveDatabaseTypeForConnection, metadataSchemaForConnection } from "@/lib/database/jdbcDialect";
 import { frontendQueryTimeoutSecsForSql, queryTimeoutSecsForConnection } from "@/lib/sql/queryTimeout";
 import { queryResultNameFromPreamble, queryResultSourceLabel } from "@/lib/sql/queryResultSource";
+import { beginDataGridNativeSelectionBlock, finishDataGridNativeSelectionBlock } from "@/lib/dataGrid/dataGridNativeSelection";
 import { simpleDataGridOrderByReferencesMissingColumn, sortDataGridRowIndexes, type DataGridSortDirection } from "@/lib/dataGrid/dataGridSort";
 import { MAX_RESULT_PAGE_SIZE, normalizeResultPageSize } from "@/lib/dataGrid/paginationPageSize";
 import { elasticsearchRestRequestRanges, executableStatementRanges, splitSqlStatementRanges } from "@/lib/sql/sqlStatementRanges";
@@ -1199,6 +1200,12 @@ export const useQueryStore = defineStore("query", () => {
   }
 
   function applyRestoredOpenTabs(restored: { tabs: QueryTab[]; activeTabId: string | null }) {
+    const connectionStore = useConnectionStore();
+    for (const tab of restored.tabs) {
+      if (tab.mode !== "data") continue;
+      const connection = connectionStore.getConfig(tab.connectionId);
+      if (connection) tab.schema = connectionObjectTreeNodeSchema(connection, tab.database, tab.schema);
+    }
     tabs.value = restored.tabs;
     activeTabId.value = restored.activeTabId;
     activeTabHistory.value = restored.activeTabId ? [restored.activeTabId] : [];
@@ -3336,6 +3343,8 @@ export const useQueryStore = defineStore("query", () => {
       tab.queryExecutionStartedAt = Date.now();
     }
     tab.executionId = executionId;
+    const tableDataNativeSelectionBlockOwner = tab.mode === "data" ? {} : undefined;
+    if (tableDataNativeSelectionBlockOwner) beginDataGridNativeSelectionBlock(tableDataNativeSelectionBlockOwner);
     const previousDisplayedSql = tab.resultBaseSql ?? tab.lastExecutedSql ?? tab.sql;
     tab.lastExecutedSql = sql;
     tab.resultLocalSortOriginalRows = undefined;
@@ -3527,7 +3536,7 @@ export const useQueryStore = defineStore("query", () => {
                 if (!pagePlan) throw new Error(describeMongoCommandParseFailure(sourceStatement));
                 // A stale request can point past an explicit .limit() bound. Keep
                 // the backend call bounded so limit(0) cannot become unbounded.
-                const result = await api.mongoFindDocuments(tab.connectionId, currentDatabase, mongoCommand.collection, pagePlan.requestSkip, Math.max(1, pagePlan.requestLimit), mongoCommand.filter, mongoCommand.projection, mongoCommand.sort, executionId);
+                const result = await api.mongoFindDocuments(tab.connectionId, currentDatabase, mongoCommand.collection, pagePlan.requestSkip, Math.max(1, pagePlan.requestLimit), mongoCommand.filter, mongoCommand.projection, mongoCommand.sort, mongoCommand.collation, executionId);
                 const documents = pagePlan.requestLimit === 0 ? [] : result.documents;
                 const extendedDocuments = pagePlan.requestLimit === 0 ? [] : result.extended_documents;
                 const totalIsExact = result.total_is_exact !== false;
@@ -4227,6 +4236,7 @@ export const useQueryStore = defineStore("query", () => {
         syncDisplayedResultRun(current, queryBaseSql, openInNewResultTab);
       }
     } finally {
+      if (tableDataNativeSelectionBlockOwner) finishDataGridNativeSelectionBlock(tableDataNativeSelectionBlockOwner);
       const current = tabs.value.find((t) => t.id === id);
       if (current?.executionId === executionId) {
         const liveBatch = liveBatchSqlExecutions.get(current);
@@ -5036,7 +5046,7 @@ export const useQueryStore = defineStore("query", () => {
         if (!plan) throw new Error(QUERY_RESULT_EXPORT_UNSUPPORTED_ERROR);
         if (plan.requestLimit === 0) break;
 
-        const result = await api.mongoFindDocuments(tab.connectionId, tab.database, mongoCommand.collection, plan.requestSkip, plan.requestLimit, mongoCommand.filter, mongoCommand.projection, mongoCommand.sort, exportExecutionId);
+        const result = await api.mongoFindDocuments(tab.connectionId, tab.database, mongoCommand.collection, plan.requestSkip, plan.requestLimit, mongoCommand.filter, mongoCommand.projection, mongoCommand.sort, mongoCommand.collation, exportExecutionId);
         const pageDocuments = result.documents.slice(0, plan.requestLimit);
         documents.push(...pageDocuments);
 

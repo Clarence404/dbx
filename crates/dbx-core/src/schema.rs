@@ -2863,6 +2863,14 @@ mod tests {
     }
 
     #[test]
+    fn mysql_object_source_sql_emits_show_create_trigger() {
+        assert_eq!(
+            mysql_object_source_sql("tenant_db", "before_insert", &db::ObjectSourceKind::Trigger),
+            "SHOW CREATE TRIGGER `tenant_db`.`before_insert`"
+        );
+    }
+
+    #[test]
     fn mysql_object_source_sql_emits_show_create_materialized_view() {
         // Regression for the review comment: Doris / StarRocks ride on the MySQL
         // protocol, so the MV branch of mysql_object_source_sql must produce a
@@ -2889,6 +2897,7 @@ mod tests {
         assert_eq!(mysql_object_source_ddl_column_index(&db::ObjectSourceKind::MaterializedView), 1);
         assert_eq!(mysql_object_source_ddl_column_index(&db::ObjectSourceKind::Procedure), 2);
         assert_eq!(mysql_object_source_ddl_column_index(&db::ObjectSourceKind::Function), 2);
+        assert_eq!(mysql_object_source_ddl_column_index(&db::ObjectSourceKind::Trigger), 2);
     }
 
     #[test]
@@ -5429,6 +5438,7 @@ fn deduplicate_column_infos(columns: Vec<db::ColumnInfo>) -> Vec<db::ColumnInfo>
     for column in columns {
         if let Some(existing) = result.iter_mut().find(|existing| existing.name == column.name) {
             existing.is_primary_key |= column.is_primary_key;
+            existing.is_unique |= column.is_unique;
             existing.is_nullable &= column.is_nullable;
             merge_optional_string(&mut existing.column_default, column.column_default);
             merge_optional_string(&mut existing.extra, column.extra);
@@ -5450,6 +5460,37 @@ fn deduplicate_column_infos(columns: Vec<db::ColumnInfo>) -> Vec<db::ColumnInfo>
         }
     }
     result
+}
+
+pub async fn get_all_columns_core(
+    state: &AppState,
+    connection_id: &str,
+    database: &str,
+    schema: &str,
+) -> Result<Vec<db::TableColumnsResult>, String> {
+    let tables = list_tables_core(state, connection_id, database, schema, None, None, None, None, None).await?;
+
+    let mut result: Vec<db::TableColumnsResult> = Vec::with_capacity(tables.len());
+    for table in tables {
+        match get_columns_core(state, connection_id, database, schema, &table.name).await {
+            Ok(columns) => {
+                result.push(db::TableColumnsResult { table_name: table.name, columns, error: None });
+            }
+            Err(e) => {
+                log::warn!(
+                    "[schema][get_all_columns] connection_id={} database={} schema={} table={} error={}",
+                    connection_id,
+                    database,
+                    schema,
+                    table.name,
+                    e
+                );
+                result.push(db::TableColumnsResult { table_name: table.name, columns: Vec::new(), error: Some(e) });
+            }
+        }
+    }
+
+    Ok(result)
 }
 
 fn merge_optional_string(target: &mut Option<String>, candidate: Option<String>) {
@@ -6578,8 +6619,8 @@ pub fn mysql_object_source_sql(database: &str, name: &str, kind: &db::ObjectSour
         db::ObjectSourceKind::View => format!("SHOW CREATE VIEW {qualified_name}"),
         db::ObjectSourceKind::Procedure => format!("SHOW CREATE PROCEDURE {qualified_name}"),
         db::ObjectSourceKind::Function => format!("SHOW CREATE FUNCTION {qualified_name}"),
-        db::ObjectSourceKind::Trigger
-        | db::ObjectSourceKind::Sequence
+        db::ObjectSourceKind::Trigger => format!("SHOW CREATE TRIGGER {qualified_name}"),
+        db::ObjectSourceKind::Sequence
         | db::ObjectSourceKind::Synonym
         | db::ObjectSourceKind::Package
         | db::ObjectSourceKind::PackageBody
@@ -6603,7 +6644,7 @@ pub fn mysql_object_source_sql(database: &str, name: &str, kind: &db::ObjectSour
 /// The shape of the result is dialect-dependent:
 /// - `SHOW CREATE VIEW`, Doris/StarRocks `SHOW CREATE MATERIALIZED VIEW` →
 ///   `(Name, DDL)` → DDL at index `1`.
-/// - `SHOW CREATE PROCEDURE`, `SHOW CREATE FUNCTION` →
+/// - `SHOW CREATE PROCEDURE`, `SHOW CREATE FUNCTION`, `SHOW CREATE TRIGGER` →
 ///   `(Name, sql_mode, DDL, …)` → DDL at index `2`.
 ///
 /// Encoded as a function so the index can be unit-tested without a live DB.
