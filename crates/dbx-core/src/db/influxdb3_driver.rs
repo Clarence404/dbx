@@ -360,20 +360,6 @@ async fn http_execute_query(client: &Influxdb3Client, database: &str, sql: &str)
     Ok(build_query_result_from_json_rows(rows, start))
 }
 
-fn rows_extract_first_column_strings(rows: &[serde_json::Value]) -> Vec<String> {
-    let mut out = Vec::new();
-    for row in rows {
-        if let Some(obj) = row.as_object() {
-            if let Some((_, first)) = obj.iter().next() {
-                if let Some(value) = first.as_str() {
-                    out.push(value.to_string());
-                }
-            }
-        }
-    }
-    out
-}
-
 fn escape_sql_literal(value: &str) -> String {
     value.replace('\'', "''")
 }
@@ -575,24 +561,6 @@ fn batches_extract_column(batches: &[RecordBatch], column: &str) -> Vec<String> 
     for batch in batches {
         let Some(index) = batch.schema().index_of(column).ok() else { continue };
         let array = batch.column(index);
-        for row_idx in 0..batch.num_rows() {
-            match arrow_cell_to_json(array.as_ref(), row_idx) {
-                serde_json::Value::String(value) => out.push(value),
-                serde_json::Value::Null => {}
-                other => out.push(other.to_string()),
-            }
-        }
-    }
-    out
-}
-
-fn batches_extract_first_string_column(batches: &[RecordBatch]) -> Vec<String> {
-    let mut out = Vec::new();
-    for batch in batches {
-        if batch.num_columns() == 0 {
-            continue;
-        }
-        let array = batch.column(0);
         for row_idx in 0..batch.num_rows() {
             match arrow_cell_to_json(array.as_ref(), row_idx) {
                 serde_json::Value::String(value) => out.push(value),
