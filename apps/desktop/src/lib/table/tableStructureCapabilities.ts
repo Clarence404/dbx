@@ -340,6 +340,7 @@ const capabilityByType: Partial<Record<DatabaseType, TableStructureCapabilities>
   clickhouse: clickhouseCapabilities,
   informix: informixCapabilities,
   influxdb: influxdbCapabilities,
+  influxdb3: influxdbCapabilities,
   manticoresearch: manticoreSearchCapabilities,
 };
 

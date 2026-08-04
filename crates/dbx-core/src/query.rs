@@ -812,6 +812,7 @@ fn should_discard_pool_after_query_timeout(db_type: Option<DatabaseType>) -> boo
                 | DatabaseType::Weaviate
                 | DatabaseType::ChromaDb
                 | DatabaseType::InfluxDb
+                | DatabaseType::InfluxDb3
         )
 }
 
@@ -1500,6 +1501,23 @@ async fn do_execute_typed(
                 cancel_token,
                 query_timeout,
                 db::influxdb_driver::execute_query(&client, &database, sql),
+            )
+            .await
+            .map(|result| truncate_result_with_max_rows(result, max_rows));
+            if matches!(result.as_ref(), Err(err) if should_discard_pool_after_error(pool_db_type, err)) {
+                state.remove_pool_by_key(pool_key).await;
+            }
+            result
+        }
+        PoolKind::InfluxDb3(client) => {
+            let client = client.clone();
+            let database = pool_key.split(':').nth(1).unwrap_or("default").to_string();
+            let max_rows = options.max_rows;
+            drop(connections);
+            let result = wait_for_query_opt(
+                cancel_token,
+                query_timeout,
+                db::influxdb3_driver::execute_query(&client, &database, sql),
             )
             .await
             .map(|result| truncate_result_with_max_rows(result, max_rows));
@@ -2775,6 +2793,7 @@ fn pool_kind_has_transactional_path(pool: &PoolKind) -> bool {
         | PoolKind::Easysearch(_)
         | PoolKind::VectorDb(_)
         | PoolKind::InfluxDb(_)
+        | PoolKind::InfluxDb3(_)
         | PoolKind::ExternalDriver { .. } => false,
     }
 }
@@ -3015,6 +3034,7 @@ pub async fn execute_statements_in_transaction_on_pool_typed(
             | PoolKind::Easysearch(_)
             | PoolKind::VectorDb(_)
             | PoolKind::InfluxDb(_)
+            | PoolKind::InfluxDb3(_)
             | PoolKind::ExternalDriver { .. } => TxPath::None,
         })
     };

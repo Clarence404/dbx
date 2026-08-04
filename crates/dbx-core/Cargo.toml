@@ -75,6 +75,15 @@ zstd = "0.13"
 sysinfo = { version = "0.32", features = ["system"] }
 serde_yaml = "0.9"
 minijinja = "2"
+
+# Arrow Flight SQL transport for InfluxDB 3.x. arrow-flight ships pre-generated
+# protobuf definitions, so no `protoc` build-time dependency is required.
+tonic = { version = "0.12", default-features = false, features = ["transport", "codegen", "prost", "tls", "tls-webpki-roots"] }
+arrow-flight = { version = "53", features = ["flight-sql-experimental", "tls"] }
+arrow-array = "53"
+arrow-schema = "53"
+arrow-cast = "53"
+prost = "0.13"
 notify = { version = "7", default-features = false, features = ["macos_kqueue"] }
 arc-swap = "1"
 insta = { version = "1", features = ["json", "glob"] }

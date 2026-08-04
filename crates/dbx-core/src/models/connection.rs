@@ -533,6 +533,8 @@ pub enum DatabaseType {
     CloudflareD1,
     #[serde(rename = "influxdb")]
     InfluxDb,
+    #[serde(rename = "influxdb3")]
+    InfluxDb3,
     #[serde(rename = "questdb")]
     Questdb,
     Jdbc,
@@ -1080,7 +1082,7 @@ impl ConnectionConfig {
                 format!("zookeeper://{host}:{port}")
             }
             DatabaseType::Iris => format!("iris://{host}:{port}{db_part}"),
-            DatabaseType::InfluxDb => {
+            DatabaseType::InfluxDb | DatabaseType::InfluxDb3 => {
                 let scheme = if self.ssl { "https" } else { "http" };
                 format!("{scheme}://{host}:{port}")
             }
@@ -1308,7 +1310,7 @@ impl ConnectionConfig {
             DatabaseType::Iris => {
                 format!("iris://{}:{}@{host}:{port}{db_part}", username, password)
             }
-            DatabaseType::InfluxDb => {
+            DatabaseType::InfluxDb | DatabaseType::InfluxDb3 => {
                 let scheme = if self.ssl { "https" } else { "http" };
                 format!("{scheme}://{host}:{port}")
             }

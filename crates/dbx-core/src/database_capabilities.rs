@@ -54,6 +54,7 @@ pub fn skips_tcp_probe(db_type: &DatabaseType) -> bool {
             | DatabaseType::DuckDb
             | DatabaseType::Turso
             | DatabaseType::CloudflareD1
+            | DatabaseType::InfluxDb3
             | DatabaseType::Jdbc
             | DatabaseType::MessageQueue
     ) || is_agent_type(db_type)

@@ -971,6 +971,7 @@ const driverProfiles: Record<
   nacos: { type: "nacos", port: 8848, user: "nacos", label: "Nacos", icon: "nacos", host: "127.0.0.1" },
   iris: { type: "iris", port: 1972, user: "_SYSTEM", label: "IRIS", icon: "iris" },
   influxdb: { type: "influxdb", port: 8086, user: "", label: "InfluxDB", icon: "InfluxDB" },
+  influxdb3: { type: "influxdb3", port: 8181, user: "", label: "InfluxDB 3.x", icon: "InfluxDB" },
   custom_mysql: {
     type: "mysql",
     port: 3306,
@@ -1184,20 +1185,24 @@ function hydrateNacosFields(value: unknown) {
   resetNacosFields(value as Partial<NacosAdminConfig>);
 }
 
+const INFLUXDB_V1V2_DEFAULT_PORT = 8086;
+const INFLUXDB_V3_DEFAULT_PORT = 8181;
+
 const influxDbVersion = ref<InfluxDbVersion>("1");
 const influxDbOrg = ref("");
 
-function resetInfluxDbFields(config?: Partial<InfluxDbExternalConfig>) {
-  influxDbVersion.value = config?.version === "2" ? "2" : "1";
+function resetInfluxDbFields(config?: Partial<InfluxDbExternalConfig>, versionHint?: InfluxDbVersion) {
+  const version = versionHint ?? (config?.version === "2" ? "2" : config?.version === "3" ? "3" : "1");
+  influxDbVersion.value = version;
   influxDbOrg.value = config?.org?.trim() || "";
 }
 
-function hydrateInfluxDbFields(value: unknown) {
+function hydrateInfluxDbFields(value: unknown, versionHint?: InfluxDbVersion) {
   if (!value || typeof value !== "object") {
-    resetInfluxDbFields();
+    resetInfluxDbFields(undefined, versionHint);
     return;
   }
-  resetInfluxDbFields(value as Partial<InfluxDbExternalConfig>);
+  resetInfluxDbFields(value as Partial<InfluxDbExternalConfig>, versionHint);
 }
 
 function resetHiveKerberosFields(config?: Pick<ConnectionConfig, "url_params" | "agent_java_options">) {
@@ -1214,7 +1219,11 @@ function resetDamengJvmOptions(config?: Pick<ConnectionConfig, "agent_java_optio
   damengJvmOptions.value = damengJvmSystemPropertiesText(config?.agent_java_options);
 }
 
-function buildInfluxDbExternalConfig(): InfluxDbExternalConfig {
+function buildInfluxDbExternalConfig(): InfluxDbExternalConfig | undefined {
+  if (influxDbVersion.value === "3") {
+    if (!form.value.password.trim()) throw new Error("InfluxDB 3.x token is required");
+    return { version: "3" };
+  }
   if (influxDbVersion.value !== "2") return { version: "1" };
   const org = influxDbOrg.value.trim();
   if (!org) throw new Error("InfluxDB 2.x organization is required");
@@ -1223,10 +1232,18 @@ function buildInfluxDbExternalConfig(): InfluxDbExternalConfig {
   return { version: "2", org };
 }
 
-watch(influxDbVersion, (version) => {
+watch(influxDbVersion, (version, previousVersion) => {
   if (form.value.db_type !== "influxdb") return;
-  if (version === "2") {
+  if (version === "2" || version === "3") {
     form.value.username = "";
+  }
+  // Suggest the version-appropriate port default only when the user hasn't
+  // customized away from the previous version's default.
+  const port = form.value.port;
+  if (version === "3" && (!port || port === INFLUXDB_V1V2_DEFAULT_PORT)) {
+    form.value.port = INFLUXDB_V3_DEFAULT_PORT;
+  } else if (previousVersion === "3" && port === INFLUXDB_V3_DEFAULT_PORT) {
+    form.value.port = INFLUXDB_V1V2_DEFAULT_PORT;
   }
 });
 
@@ -2056,8 +2073,14 @@ watch(
       } else {
         resetNacosFields();
       }
-      if (config.db_type === "influxdb") {
-        hydrateInfluxDbFields(config.external_config);
+      if (config.db_type === "influxdb" || config.db_type === "influxdb3") {
+        // Present the influxdb3 engine as InfluxDB card + version=3 in the form; save-side
+        // translates back to db_type=influxdb3 based on influxDbVersion.value.
+        const versionHint: InfluxDbVersion | undefined = config.db_type === "influxdb3" ? "3" : undefined;
+        hydrateInfluxDbFields(config.external_config, versionHint);
+        if (config.db_type === "influxdb3") {
+          form.value.db_type = "influxdb";
+        }
       } else {
         resetInfluxDbFields();
       }
@@ -2319,6 +2342,7 @@ const iconTypeMap: Record<string, string> = {
   sundb: "sundb",
   oscar: "oscar",
   influxdb: "influxdb",
+  influxdb3: "influxdb3",
   jdbc: "jdbc",
   custom_mysql: "mysql",
   custom_postgres: "postgres",
@@ -2552,7 +2576,7 @@ const sqliteExtensionPaths = computed({
     form.value.url_params = setSqliteExtensionPaths(form.value.url_params, value);
   },
 });
-const tlsCapableDatabaseTypes = new Set<DatabaseType>(["mysql", "starrocks", "postgres", "redshift", "gaussdb", "kwdb", "opengauss", "questdb", "dameng", "redis", "etcd", "clickhouse", "elasticsearch", "easysearch", "hbase", "qdrant", "milvus", "weaviate", "chromadb", "influxdb"]);
+const tlsCapableDatabaseTypes = new Set<DatabaseType>(["mysql", "starrocks", "postgres", "redshift", "gaussdb", "kwdb", "opengauss", "questdb", "dameng", "redis", "etcd", "clickhouse", "elasticsearch", "easysearch", "hbase", "qdrant", "milvus", "weaviate", "chromadb", "influxdb", "influxdb3"]);
 const supportsTlsToggle = computed(() => tlsCapableDatabaseTypes.has(form.value.db_type));
 const supportsCaCertificatePath = computed(() => form.value.db_type === "clickhouse");
 const supportsGenericUrlParams = computed(() => form.value.db_type !== "manticoresearch" && form.value.db_type !== "hbase");
@@ -3256,10 +3280,15 @@ function connectionConfigForSubmit(id: string, generatedName = ""): ConnectionCo
   } else if (config.db_type === "influxdb") {
     config.external_config = buildInfluxDbExternalConfig();
     config.connection_string = undefined;
-    if (influxDbVersion.value === "2") {
+    if (influxDbVersion.value === "2" || influxDbVersion.value === "3") {
       config.username = "";
       config.password = config.password.trim();
       config.database = config.database?.trim() || undefined;
+    }
+    // Swap db_type to the standalone influxdb3 engine when v3 is selected; the
+    // form kept db_type=influxdb so the same UI card handles all versions.
+    if (influxDbVersion.value === "3") {
+      config.db_type = "influxdb3";
     }
   } else if (config.db_type === "elasticsearch") {
     config.external_config = buildElasticsearchExternalConfig(elasticsearchConnectionMode.value, elasticsearchKibanaBasePath.value, elasticsearchConnectivityCheckPath.value);
@@ -5835,6 +5864,7 @@ function openExternalUrl(url: string) {
                       <SelectContent>
                         <SelectItem value="1">InfluxDB 1.x</SelectItem>
                         <SelectItem value="2">InfluxDB 2.x</SelectItem>
+                        <SelectItem value="3">InfluxDB 3.x</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -5864,6 +5894,16 @@ function openExternalUrl(url: string) {
                       <PasswordInput v-model="form.password" class="col-span-3" />
                     </div>
                   </template>
+                  <template v-else-if="influxDbVersion === '3'">
+                    <div class="grid grid-cols-4 items-center gap-4">
+                      <Label :class="connectionLabelClass">{{ t("connection.database") }}</Label>
+                      <Input v-model="form.database" class="col-span-3" placeholder="my-database" />
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                      <Label :class="connectionLabelClass">Token</Label>
+                      <PasswordInput v-model="form.password" class="col-span-3" />
+                    </div>
+                  </template>
                   <template v-else>
                     <div class="grid grid-cols-4 items-center gap-4">
                       <Label :class="connectionLabelClass">{{ t("connection.user") }}</Label>
@@ -5880,7 +5920,7 @@ function openExternalUrl(url: string) {
                   </template>
                   <div class="grid grid-cols-4 items-center gap-4">
                     <Label :class="connectionLabelClass">{{ t("connection.urlParams") }}</Label>
-                    <Input v-model="form.url_params" class="col-span-3" :placeholder="influxDbVersion === '2' ? 'precision=ns' : 'epoch=ms'" />
+                    <Input v-model="form.url_params" class="col-span-3" :placeholder="influxDbVersion === '2' ? 'precision=ns' : influxDbVersion === '3' ? '' : 'epoch=ms'" />
                   </div>
                 </template>
 

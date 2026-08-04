@@ -100,6 +100,7 @@ const assetIcons: Record<string, string> = {
   nacos: "nacos.png",
   iris: "iris",
   influxdb: "influxdb",
+  influxdb3: "influxdb",
   zookeeper: "zookeeper",
   oscar: "oscar.png",
   jdbcx: "jdbcx",

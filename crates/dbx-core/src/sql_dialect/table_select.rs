@@ -42,8 +42,10 @@ pub fn build_table_data_select_sql(options: TableDataSelectSqlOptions) -> String
     };
     let predicate = normalize_where_input(options.where_input.as_deref());
     let where_clause = if predicate.is_empty() { String::new() } else { format!(" WHERE ({predicate})") };
-    let default_order_by = if database_type == Some(DatabaseType::InfluxDb) {
-        // InfluxQL only allows sorting of timestamp column
+    let default_order_by = if matches!(database_type, Some(DatabaseType::InfluxDb | DatabaseType::InfluxDb3)) {
+        // Time-series semantics: default the grid to newest-first on `time`.
+        // InfluxQL requires this; InfluxDB 3.x accepts arbitrary ORDER BY but
+        // the same default reads best in the UI.
         Some("time DESC".to_string())
     } else {
         None

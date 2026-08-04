@@ -1077,6 +1077,12 @@ async fn test_connection_with_info_inner(
                     .await
                     .map(|_| "Connection successful".to_string())
             }
+            DatabaseType::InfluxDb3 => {
+                let client = db::influxdb3_driver::Influxdb3Client::new_for_config(&url, &config, connect_timeout)?;
+                db::influxdb3_driver::test_connection(&client, connect_timeout)
+                    .await
+                    .map(|_| "Connection successful".to_string())
+            }
             DatabaseType::Nacos => {
                 let admin_config = state.nacos_admin_config_for_connection(connection_id, &config).await?;
                 let adapter = state.nacos_registry.build_transient_config(admin_config).await?;
@@ -1409,6 +1415,11 @@ pub async fn connect_db(
             let client = db::influxdb_driver::InfluxdbClient::new_for_config(&url, &db_config, connect_timeout)?;
             db::influxdb_driver::test_connection(&client, connect_timeout).await?;
             PoolKind::InfluxDb(client)
+        }
+        DatabaseType::InfluxDb3 => {
+            let client = db::influxdb3_driver::Influxdb3Client::new_for_config(&url, &db_config, connect_timeout)?;
+            db::influxdb3_driver::test_connection(&client, connect_timeout).await?;
+            PoolKind::InfluxDb3(client)
         }
         DatabaseType::Nacos => {
             let admin_config = state.nacos_admin_config_for_connection(&id, &config).await?;

@@ -66,6 +66,7 @@ export type DatabaseType =
   | "zookeeper"
   | "iris"
   | "influxdb"
+  | "influxdb3"
   | "jdbc"
   | "mq"
   | "nacos";
