@@ -193,11 +193,19 @@ async fn error_message(resp: Response) -> String {
 
 /// Validate the connection by running the same `POST /api/v3/query_sql`
 /// call every real query uses — proves the base URL, TLS, auth token,
-/// **and** the query endpoint all work end-to-end. Falls back to the
-/// engine's `_internal` database when the connection has no default,
-/// which is present on every InfluxDB 3 install.
+/// **and** the query endpoint all work end-to-end. With no configured
+/// default database the first database visible to the token is probed;
+/// `_internal` exists on every Core install but is admin-only on
+/// Enterprise, so it is only the last resort.
 pub async fn test_connection(client: &Influxdb3Client, timeout: Duration) -> Result<(), String> {
-    let database = client.default_database.as_deref().unwrap_or(BOOTSTRAP_DATABASE);
+    let fallback_database = match client.default_database.as_deref() {
+        Some(database) => Some(database.to_string()),
+        None => list_databases(client)
+            .await
+            .ok()
+            .and_then(|databases| databases.first().map(|database| database.name.clone())),
+    };
+    let database = fallback_database.as_deref().unwrap_or(BOOTSTRAP_DATABASE);
     with_connection_timeout("InfluxDB 3", timeout, async {
         post_query_json(client, database, "SELECT 1").await.map(|_| ())
     })

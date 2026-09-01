@@ -1445,10 +1445,9 @@ function resetDamengJvmOptions(config?: Pick<ConnectionConfig, "agent_java_optio
 }
 
 function buildInfluxDbExternalConfig(): InfluxDbExternalConfig {
-  if (influxDbVersion.value === "3") {
-    if (!form.value.password.trim()) throw new Error("InfluxDB 3.x token is required");
-    return { version: "3" };
-  }
+  // InfluxDB 3 Core can run with --without-auth; the driver treats an empty
+  // password as "no Authorization header", so the token stays optional here.
+  if (influxDbVersion.value === "3") return { version: "3" };
   if (influxDbVersion.value !== "2") return { version: "1" };
   const org = influxDbOrg.value.trim();
   if (!org) throw new Error("InfluxDB 2.x organization is required");
