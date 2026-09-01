@@ -8729,14 +8729,15 @@ function batchAppendPasteError(reason: string): string {
   return t(messages[reason] ?? "grid.batchAppendPasteInvalidTarget");
 }
 
-function blankCellBatchAppendPasteTarget(pastedRows: readonly (readonly (string | null)[])[]): { rowId: number; columnIndexes: number[] } | null {
+function blankSelectionBatchAppendPasteTarget(pastedRows: readonly (readonly (string | null)[])[]): { rowId: number; columnIndexes: number[] } | null {
   if (pastedRows.length <= 1) return null;
   const range = selectedRange.value;
-  if (!range || range.startRow !== range.endRow || range.startCol !== range.endCol) return null;
-  const item = displayItemAt(range.startRow);
-  if ((!item?.isNew && !item?.isDraft) || item.isDeleted || item.data.some((value) => value !== null && (typeof value !== "string" || value.trim() !== ""))) return null;
+  if (!range || (range.startRow === range.endRow && range.startCol !== range.endCol)) return null;
+  const selectedItems = Array.from({ length: range.endRow - range.startRow + 1 }, (_, offset) => displayItemAt(range.startRow + offset));
+  if (selectedItems.some((item) => (!item?.isNew && !item?.isDraft) || item.isDeleted || item.data.some((value) => value !== null && (typeof value !== "string" || value.trim() !== "")))) return null;
+  const item = selectedItems[0];
   const columnIndex = visibleColumnIndexes.value[range.startCol];
-  if (columnIndex === undefined || !canEditCellItem(item, columnIndex)) return null;
+  if (!item || columnIndex === undefined || !canEditCellItem(item, columnIndex)) return null;
   return { rowId: item.id, columnIndexes: visibleColumnIndexes.value.slice(range.startCol) };
 }
 
@@ -8760,7 +8761,7 @@ function pasteTextIntoGrid(text: string): boolean {
   if (targetRowId !== null) {
     return appendParsedRowsToBlankTarget(targetRowId, rows, visibleColumnIndexes.value);
   }
-  const cellTarget = blankCellBatchAppendPasteTarget(rows);
+  const cellTarget = blankSelectionBatchAppendPasteTarget(rows);
   if (cellTarget) return appendParsedRowsToBlankTarget(cellTarget.rowId, rows, cellTarget.columnIndexes);
   return pasteRowsIntoSelection(rows);
 }

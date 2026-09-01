@@ -7729,6 +7729,52 @@ test("data tab execution uses a tab-scoped client session", async () => {
   }
 });
 
+test("table-data pagination is not clamped by the query result row cap", async () => {
+  const restoreStorage = installMemoryStorage();
+  setActivePinia(createPinia());
+  const connectionStore = useConnectionStore();
+  const settingsStore = useSettingsStore();
+  const store = useQueryStore();
+  const originalFetch = globalThis.fetch;
+  let executeBody: any;
+
+  settingsStore.updateEditorSettings({ queryResultMaxRowsEnabled: true, queryResultMaxRows: 100_000 });
+  connectionStore.addEphemeralConnection(conn("table-data-deep-page"));
+  const tabId = store.createTab("table-data-deep-page", "db", "users", "data", "public");
+  const tab = store.tabs.find((item) => item.id === tabId);
+  assert.ok(tab);
+
+  globalThis.fetch = withConnectionHealthMock(async (input, init) => {
+    if (String(input) !== "/api/query/execute-multi") return new Response("unexpected request", { status: 500 });
+    executeBody = JSON.parse(String(init?.body ?? "{}"));
+    return Response.json([
+      {
+        columns: ["id"],
+        rows: Array.from({ length: 100 }, (_, index) => [199_901 + index]),
+        affected_rows: 0,
+        execution_time_ms: 1,
+      },
+    ]);
+  });
+
+  try {
+    await store.executeTabSql(tabId, 'SELECT * FROM "users" LIMIT 100 OFFSET 199900', {
+      pagination: { limit: 100, offset: 199_900 },
+    });
+
+    assert.match(executeBody.sql, /OFFSET 199900/);
+    assert.equal(executeBody.maxRows, 100);
+    assert.equal(executeBody.fetchSize, 100);
+    assert.equal(tab.resultPageLimit, 100);
+    assert.equal(tab.resultPageOffset, 199_900);
+    assert.equal(tab.result?.truncated, undefined);
+    assert.equal(tab.resultTotalRowCount, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreStorage();
+  }
+});
+
 test("closing a data tab releases its tab-scoped client session", async () => {
   const restoreStorage = installMemoryStorage();
   setActivePinia(createPinia());

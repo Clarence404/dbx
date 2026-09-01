@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isDangerousSql, requiresDatabaseSelection, supportsSqlTemplateParameters, useSqlExecution } from "../useSqlExecution";
@@ -7,6 +7,7 @@ import { useHistoryStore } from "@/stores/historyStore";
 import { useQueryStore } from "@/stores/queryStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useProductionSafetyStore } from "@/stores/productionSafetyStore";
+import { createQueryEditorExecutionViewportOwnership } from "@/lib/editor/queryEditorExecutionViewport";
 import * as objectMetadataCache from "@/lib/metadata/objectMetadataCache";
 import type { ConnectionConfig, QueryTab } from "@/types/database";
 
@@ -1112,6 +1113,97 @@ SELECT @value AS Message;`;
     await execution.tryExecute();
 
     expect(addHistory).toHaveBeenCalledWith(expect.objectContaining({ success: true, error: undefined }));
+  });
+
+  it("cancels the editor viewport request when dangerous SQL is dismissed", async () => {
+    const sql = "DELETE FROM users WHERE id = 7";
+    const activeTab = ref<QueryTab | undefined>({ ...queryTab("app"), sql });
+    const activeConnection = ref<ConnectionConfig | undefined>(connection("mysql"));
+    const activeOutputView = ref<"result" | "summary" | "explain" | "chart">("result");
+    const queryStore = useQueryStore();
+    const executeCurrentSql = vi.spyOn(queryStore, "executeCurrentSql");
+    const onExecutionCancelled = vi.fn();
+
+    const execution = useSqlExecution({
+      activeTab: computed(() => activeTab.value),
+      activeConnection: computed(() => activeConnection.value),
+      executableSql: computed(() => sql),
+      activeOutputView,
+      onExecutionCancelled,
+    });
+
+    await execution.tryExecute({
+      fullSql: sql,
+      selectedSql: sql,
+      cursorPos: 0,
+      selectionFrom: 0,
+      selectionTo: sql.length,
+      editorViewportRequestId: 17,
+    });
+
+    expect(execution.showDangerDialog.value).toBe(true);
+    execution.showDangerDialog.value = false;
+    await nextTick();
+
+    expect(onExecutionCancelled).toHaveBeenCalledTimes(1);
+    expect(onExecutionCancelled).toHaveBeenCalledWith(17);
+    expect(executeCurrentSql).not.toHaveBeenCalled();
+  });
+
+  it("does not reuse a cancelled viewport request on the next dangerous execution", async () => {
+    const sql = "DELETE FROM users WHERE id = 7";
+    const activeTab = ref<QueryTab | undefined>({ ...queryTab("app"), sql });
+    const activeConnection = ref<ConnectionConfig | undefined>(connection("mysql"));
+    const activeOutputView = ref<"result" | "summary" | "explain" | "chart">("result");
+    const queryStore = useQueryStore();
+    const ownership = createQueryEditorExecutionViewportOwnership();
+    const executeCurrentSql = vi.spyOn(queryStore, "executeCurrentSql").mockImplementation(async (_sql, options) => {
+      options?.onExecutionStarted?.();
+      if (activeTab.value) activeTab.value.result = { columns: [], rows: [], affected_rows: 1, execution_time_ms: 1 };
+    });
+    vi.spyOn(useHistoryStore(), "add").mockResolvedValue(undefined);
+    const onExecutionStarted = vi.fn((requestId: number) => ownership.acceptRequest(requestId));
+    const onExecutionCancelled = vi.fn((requestId: number) => ownership.cancelPendingRequest(requestId));
+
+    const execution = useSqlExecution({
+      activeTab: computed(() => activeTab.value),
+      activeConnection: computed(() => activeConnection.value),
+      executableSql: computed(() => sql),
+      activeOutputView,
+      onExecutionStarted,
+      onExecutionCancelled,
+    });
+
+    const snapshotFor = (editorViewportRequestId: number) => ({
+      fullSql: sql,
+      selectedSql: sql,
+      cursorPos: 0,
+      selectionFrom: 0,
+      selectionTo: sql.length,
+      editorViewportRequestId,
+    });
+    const firstRequestId = ownership.beginRequest();
+    await execution.tryExecute(snapshotFor(firstRequestId));
+    expect(execution.showDangerDialog.value).toBe(true);
+
+    execution.showDangerDialog.value = false;
+    await nextTick();
+
+    expect(onExecutionCancelled).toHaveBeenCalledTimes(1);
+    expect(onExecutionCancelled).toHaveBeenCalledWith(firstRequestId);
+    expect(ownership.acceptRequest(firstRequestId)).toBe(false);
+
+    const secondRequestId = ownership.beginRequest();
+    await execution.tryExecute(snapshotFor(secondRequestId));
+    expect(execution.showDangerDialog.value).toBe(true);
+
+    await execution.onDangerConfirm();
+
+    expect(onExecutionStarted).toHaveBeenCalledTimes(1);
+    expect(onExecutionStarted).toHaveBeenCalledWith(secondRequestId);
+    expect(ownership.consumeCompletionPreservation()).toBe(true);
+    expect(ownership.consumeCompletionPreservation()).toBe(false);
+    expect(executeCurrentSql).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the full dangerous script and new-result-tab intent through confirmation", async () => {

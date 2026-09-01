@@ -180,6 +180,90 @@ afterEach(() => {
 });
 
 describe("DataGrid multi-row paste from a blank cell", () => {
+  it("expands beyond pre-added blank rows when pasted rows exceed them", async () => {
+    const { host } = mountGrid();
+    await settle();
+    for (let index = 0; index < 5; index++) await addBlankRow(host);
+
+    const blankRows = pendingRows(host);
+    expect(blankRows).toHaveLength(5);
+    await selectCell(visibleCells(blankRows[0]!)[0]!);
+    await selectCell(visibleCells(blankRows[4]!)[0]!, { shiftKey: true });
+    await paste(host, "1\n2\n3\n4\n5\n6\n7\n8\n9\n10");
+
+    const rows = pendingRows(host);
+    expect(rows).toHaveLength(10);
+    expect(rows.map((row) => visibleCellTexts(row)[0])).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+    expect(visibleCellTexts(rows.at(-1)!)[0]).toBe("10");
+  });
+
+  it("reuses exactly enough pre-added blank rows without adding an extra row", async () => {
+    const { host } = mountGrid();
+    await settle();
+    for (let index = 0; index < 10; index++) await addBlankRow(host);
+
+    const blankRows = pendingRows(host);
+    expect(blankRows).toHaveLength(10);
+    await selectCell(visibleCells(blankRows[0]!)[0]!);
+    await selectCell(visibleCells(blankRows[9]!)[0]!, { shiftKey: true });
+    await paste(host, "1\n2\n3\n4\n5\n6\n7\n8\n9\n10");
+
+    const rows = pendingRows(host);
+    expect(rows).toHaveLength(10);
+    expect(rows.map((row) => visibleCellTexts(row)[0])).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+    expect(visibleCellTexts(rows.at(-1)!)[0]).toBe("10");
+  });
+
+  it("keeps extra pre-added blank rows when the clipboard has fewer rows", async () => {
+    const { host } = mountGrid();
+    await settle();
+    for (let index = 0; index < 10; index++) await addBlankRow(host);
+
+    const blankRows = pendingRows(host);
+    await selectCell(visibleCells(blankRows[0]!)[0]!);
+    await selectCell(visibleCells(blankRows[9]!)[0]!, { shiftKey: true });
+    await paste(host, "1\n2\n3\n4\n5");
+
+    const rows = pendingRows(host);
+    expect(rows).toHaveLength(10);
+    expect(visibleCellTexts(rows[0]!)[0]).toBe("1");
+    expect(visibleCellTexts(rows[4]!)[0]).toBe("5");
+    expect(visibleCellTexts(rows[5]!)[0]).toBe("NULL");
+    expect(visibleCellTexts(rows[9]!)[0]).toBe("NULL");
+  });
+
+  it("keeps single-cell auto expansion with pre-added blank rows", async () => {
+    const { host } = mountGrid();
+    await settle();
+    for (let index = 0; index < 5; index++) await addBlankRow(host);
+
+    const blankRows = pendingRows(host);
+    await selectCell(visibleCells(blankRows[0]!)[0]!);
+    await paste(host, "1\n2\n3\n4\n5\n6\n7\n8\n9\n10");
+
+    const rows = pendingRows(host);
+    expect(rows).toHaveLength(10);
+    expect(rows.map((row) => visibleCellTexts(row)[0])).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+    expect(visibleCellTexts(rows.at(-1)!)[0]).toBe("10");
+  });
+
+  it("preserves visible column mapping for a multi-row selection", async () => {
+    const { host } = mountGrid({ hideNullColumns: true });
+    await settle();
+    for (let index = 0; index < 5; index++) await addBlankRow(host);
+
+    const blankRows = pendingRows(host);
+    await selectCell(visibleCells(blankRows[0]!)[1]!);
+    await selectCell(visibleCells(blankRows[4]!)[1]!, { shiftKey: true });
+    const clipboardRows = Array.from({ length: 10 }, (_, index) => `value-${index + 1}\tnote-${index + 1}`).join("\n");
+    await paste(host, clipboardRows);
+
+    const rows = pendingRows(host);
+    expect(rows).toHaveLength(10);
+    expect(visibleCellTexts(rows[0]!)).toEqual(["NULL", "value-1", "note-1"]);
+    expect(visibleCellTexts(rows.at(-1)!)).toEqual(["NULL", "value-10", "note-10"]);
+  });
+
   it("starts at the selected visible column, skips hidden columns, and appends rows", async () => {
     const { host } = mountGrid({ hideNullColumns: true });
     await settle();
@@ -218,17 +302,18 @@ describe("DataGrid multi-row paste from a blank cell", () => {
   it("keeps row-number paste priority and starts from the first visible column", async () => {
     const { host } = mountGrid({ hideNullColumns: true });
     await settle();
-    await addBlankRow(host);
+    for (let index = 0; index < 5; index++) await addBlankRow(host);
 
-    const [blankRow] = pendingRows(host);
-    expect(blankRow).toBeDefined();
-    await selectRowNumber(blankRow!);
-    await paste(host, "10\t20\n30\t40");
+    const blankRows = pendingRows(host);
+    expect(blankRows).toHaveLength(5);
+    await selectRowNumber(blankRows[0]!);
+    const clipboardRows = Array.from({ length: 10 }, (_, index) => `${index + 10}\t${index + 20}`).join("\n");
+    await paste(host, clipboardRows);
 
     const rows = pendingRows(host);
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(10);
     expect(visibleCellTexts(rows[0]!)).toEqual(["10", "20", "NULL"]);
-    expect(visibleCellTexts(rows[1]!)).toEqual(["30", "40", "NULL"]);
+    expect(visibleCellTexts(rows.at(-1)!)).toEqual(["19", "29", "NULL"]);
   });
 
   it("keeps nonblank new rows on the ordinary bounded paste path", async () => {
@@ -246,6 +331,24 @@ describe("DataGrid multi-row paste from a blank cell", () => {
     const rows = pendingRows(host);
     expect(rows).toHaveLength(1);
     expect(visibleCellTexts(rows[0]!)[2]).toBe("first");
+  });
+
+  it("does not expand a multi-row selection containing a nonblank new row", async () => {
+    const { host } = mountGrid();
+    await settle();
+    for (let index = 0; index < 5; index++) await addBlankRow(host);
+
+    let rows = pendingRows(host);
+    await selectCell(visibleCells(rows[0]!)[2]!);
+    await paste(host, "occupied");
+    rows = pendingRows(host);
+    await selectCell(visibleCells(rows[0]!)[2]!);
+    await selectCell(visibleCells(rows[4]!)[2]!, { shiftKey: true });
+    await paste(host, "1\n2\n3\n4\n5\n6\n7\n8\n9\n10");
+
+    rows = pendingRows(host);
+    expect(rows).toHaveLength(5);
+    expect(visibleCellTexts(rows.at(-1)!)[2]).toBe("5");
   });
 
   it("keeps existing rows on the ordinary bounded paste path", async () => {

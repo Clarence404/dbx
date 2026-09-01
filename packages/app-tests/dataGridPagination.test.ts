@@ -62,6 +62,28 @@ test("exact display totals keep pagination inside the configured result cap", ()
   );
 });
 
+test("large table pagination keeps the real last page and deep page offset", () => {
+  const totalRows = 3_374_023;
+  const pageSize = 100;
+  const tablePaginationTotal = resolveDataGridPaginationTotal({
+    serverKnownTotalRowCount: totalRows,
+    totalRowCountIsExact: true,
+  });
+  const queryPaginationTotal = resolveDataGridPaginationTotal({
+    serverKnownTotalRowCount: totalRows,
+    totalRowCountIsExact: true,
+    maxRows: 100_000,
+  });
+
+  assert.equal(tablePaginationTotal, totalRows);
+  assert.equal(queryPaginationTotal, 100_000);
+
+  const lastPage = Math.max(1, Math.ceil((tablePaginationTotal ?? 0) / pageSize));
+  assert.equal(lastPage, 33_741);
+  assert.equal((lastPage - 1) * pageSize, 3_374_000);
+  assert.equal((2_000 - 1) * pageSize, 199_900);
+});
+
 test("first query page is complete when its known total is already loaded", () => {
   assert.equal(
     hasCompleteLocalDataGridResult({

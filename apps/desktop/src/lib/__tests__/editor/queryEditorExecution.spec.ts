@@ -92,8 +92,11 @@ describe("QueryEditor execution routing", () => {
 
   it("claims gutter viewport ownership only after the matching execution starts", () => {
     expect(appSource).toContain("acceptQueryEditorExecutionViewport(editorViewportRequestId)");
+    expect(appSource).toContain("onExecutionCancelled: (editorViewportRequestId) => contentAreaRef.value?.cancelQueryEditorExecutionViewport(editorViewportRequestId)");
     expect(contentAreaSource).toContain("acceptGutterExecutionViewport(requestId)");
+    expect(contentAreaSource).toContain("cancelGutterExecutionViewport(requestId)");
     expect(sqlExecutionSource).toContain("onExecutionStarted: () => deps.onExecutionStarted?.(options.editorViewportRequestId!)");
+    expect(sqlExecutionSource).toContain("onExecutionCancelled?: (editorViewportRequestId: number) => void;");
     expect(queryStoreSource.indexOf("tab.isExecuting = true")).toBeLessThan(queryStoreSource.indexOf("options?.onExecutionStarted?.()"));
   });
 
@@ -160,7 +163,7 @@ describe("QueryEditor execution viewport ownership", () => {
     const ownership = createQueryEditorExecutionViewportOwnership();
     const cancelledRequestId = ownership.beginRequest();
 
-    ownership.cancelPendingRequest();
+    expect(ownership.cancelPendingRequest(cancelledRequestId)).toBe(true);
 
     expect(ownership.acceptRequest(cancelledRequestId)).toBe(false);
     expect(ownership.consumeCompletionPreservation()).toBe(false);
