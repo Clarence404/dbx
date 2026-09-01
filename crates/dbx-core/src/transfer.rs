@@ -5156,6 +5156,13 @@ pub async fn get_columns_for_transfer(
         drop(connections);
         return db::influxdb_driver::get_columns(&client, &database, &table).await;
     }
+    if let Some(PoolKind::InfluxDb3(client)) = connections.get(pool_key) {
+        let client = client.clone();
+        let database = database.to_string();
+        let table = table.to_string();
+        drop(connections);
+        return db::influxdb3_driver::get_columns(&client, &database, &table).await;
+    }
     if let Some(PoolKind::Agent(client)) = connections.get(pool_key) {
         let client = client.clone();
         let database = database.to_string();

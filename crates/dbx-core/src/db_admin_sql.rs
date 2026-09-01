@@ -288,6 +288,7 @@ pub fn supports_create_database_target(database_type: Option<DatabaseType>) -> b
                 | DatabaseType::ClickHouse
                 | DatabaseType::SqlServer
                 | DatabaseType::InfluxDb
+                | DatabaseType::InfluxDb3
                 | DatabaseType::Databend
                 | DatabaseType::Snowflake
                 | DatabaseType::Tdengine
