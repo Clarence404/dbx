@@ -1295,6 +1295,8 @@ export interface QueryTab {
     searchQuery?: string;
     viewport?: ObjectBrowserViewport;
   };
+  /** Opened to view object source, including objects without editable source metadata. */
+  sourceView?: boolean;
   objectSource?: {
     schema?: string;
     name: string;
