@@ -2009,6 +2009,8 @@ export default withEnglishFallback({
     rowsPerPageShort: " linhas",
     columnDetails: "Detalhes da Coluna",
     tableInfo: "Informações da Tabela",
+    pinTableInfo: "Fixar painel de informações da tabela",
+    unpinTableInfo: "Desafixar painel de informações da tabela",
     tableInfoColumns: "Colunas",
     tableInfoIndexes: "Índices",
     columnPrimaryIndex: "Índice de chave primária",
