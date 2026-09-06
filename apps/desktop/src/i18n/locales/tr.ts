@@ -6238,6 +6238,8 @@ export default withEnglishFallback({
       cascadeDelete: "CASCADE silme kullan",
       sequenceLastValues: "Dizi son değerlerini karşılaştır",
       compareColumnOrder: "Sütun sırasını karşılaştır",
+      ignoreTableNameCase: "Tablo adı büyük/küçük harflerini yoksay",
+      ignoreColumnNameCase: "Sütun adı büyük/küçük harflerini yoksay",
       detectRenames: "Yeniden adlandırmaları algıla",
       detectTableRenames: "Tablo yeniden adlandırmalarını algıla",
       enableRollback: "Geri almayı etkinleştir",
