@@ -1119,6 +1119,148 @@ class DamengAgentMetadataTest {
     }
 
     @Test
+    void readsIdentityColumnsFromDdlText() {
+        Assertions.assertEquals(
+            java.util.Set.of("ID"),
+            DamengAgent.identityColumnsFromDdlText(
+                "CREATE TABLE \"DBX_TEST\".\"T\"\n(\n\"ID\" INT IDENTITY(1, 1) NOT NULL,\n"
+                    + "\"NAME\" VARCHAR(64),\nNOT CLUSTER PRIMARY KEY(\"ID\")) STORAGE(ON \"MAIN\") ;"
+            )
+        );
+    }
+
+    @Test
+    void ignoresIdentityLookalikesInDdlText() {
+        // A column *named* IDENTITY whose default merely contains the word must not be reported,
+        // and neither must a table-level constraint that mentions it.
+        Assertions.assertEquals(
+            java.util.Set.of(),
+            DamengAgent.identityColumnsFromDdlText(
+                "CREATE TABLE \"DBX_TEST\".\"T\"\n(\n\"IDENTITY\" VARCHAR(32) DEFAULT 'IDENTITY(1,1)',\n"
+                    + "\"PLAIN\" INT,\n\"IDENTITY_KIND\" VARCHAR(8)) STORAGE(ON \"MAIN\") ;"
+            )
+        );
+    }
+
+    @Test
+    void readsEveryIdentityColumnFromDdlText() {
+        Assertions.assertEquals(
+            java.util.Set.of("A", "C"),
+            DamengAgent.identityColumnsFromDdlText(
+                "CREATE TABLE \"S\".\"T\"\n(\n\"A\" BIGINT IDENTITY(1, 1),\n\"B\" VARCHAR(9),\n"
+                    + "\"C\" INT identity(100, 5) NOT NULL,\nCLUSTER PRIMARY KEY(\"A\", \"C\")) ;"
+            )
+        );
+    }
+
+    @Test
+    void toleratesDdlTextThatCannotBeParsed() {
+        Assertions.assertEquals(java.util.Set.of(), DamengAgent.identityColumnsFromDdlText(null));
+        Assertions.assertEquals(java.util.Set.of(), DamengAgent.identityColumnsFromDdlText(""));
+        Assertions.assertEquals(java.util.Set.of(), DamengAgent.identityColumnsFromDdlText("CREATE TABLE \"S\".\"T\""));
+    }
+
+    @Test
+    void fallsBackToTableDdlWhenSysColumnsIsNotReadable() {
+        // Ordinary Dameng accounts have no SELECT on SYS.SYSCOLUMNS. Without the fallback the
+        // identity column looks like a plain NOT NULL column and the grid sends its value.
+        List<String> sqls = new ArrayList<>();
+        DamengAgent agent = new DamengAgent();
+        TestSupport.setPrivateConnection(agent, restrictedAccountConnection(sqls, List.of()));
+
+        List<ColumnInfo> columns = agent.getColumns("APP", "USERS");
+
+        Assertions.assertEquals(1, columns.size());
+        Assertions.assertEquals("identity", columns.get(0).getExtra());
+        Assertions.assertTrue(
+            sqls.stream().anyMatch(sql -> sql.contains("DBMS_METADATA.GET_DDL")),
+            sqls.toString()
+        );
+    }
+
+    @Test
+    void fallsBackToJdbcPrimaryKeysWhenConstraintDictionaryIsEmpty() {
+        // ALL_CONS_COLUMNS yields no rows (not an error) for those same accounts.
+        DamengAgent agent = new DamengAgent();
+        TestSupport.setPrivateConnection(agent, restrictedAccountConnection(new ArrayList<>(), List.of()));
+
+        List<ColumnInfo> columns = agent.getColumns("APP", "USERS");
+
+        Assertions.assertEquals(1, columns.size());
+        Assertions.assertTrue(columns.get(0).getIs_primary_key());
+    }
+
+    @Test
+    void keepsPrimaryKeysFromConstraintDictionaryWhenReadable() {
+        // The JDBC fallback must not displace the dictionary answer when that one works.
+        DamengAgent agent = new DamengAgent();
+        TestSupport.setPrivateConnection(agent, restrictedAccountConnection(new ArrayList<>(), List.of(List.of("ID"))));
+
+        List<ColumnInfo> columns = agent.getColumns("APP", "USERS");
+
+        Assertions.assertTrue(columns.get(0).getIs_primary_key());
+    }
+
+    @Test
+    void doesNotReadTableDdlWhenSysColumnsIsReadableButEmpty() {
+        // A readable-but-empty SYS.SYSCOLUMNS means "no identity column" and must stay cheap.
+        List<String> sqls = new ArrayList<>();
+        DamengAgent agent = new DamengAgent();
+        TestSupport.setPrivateConnection(agent, metadataConnection(null, null, false, List.of(), sqls));
+
+        agent.getColumns("APP", "USERS");
+
+        Assertions.assertTrue(
+            sqls.stream().noneMatch(sql -> sql.contains("DBMS_METADATA.GET_DDL")),
+            sqls.toString()
+        );
+    }
+
+    /**
+     * A connection shaped like a non-DBA Dameng account: SYS.SYSCOLUMNS raises a permission error
+     * and the constraint dictionary answers with no rows, while the table DDL and the driver's own
+     * primary-key metadata both still work.
+     */
+    private static Connection restrictedAccountConnection(List<String> sqls, List<List<Object>> constraintRows) {
+        DatabaseMetaData metadata = proxy(DatabaseMetaData.class, (method, args) -> {
+            if ("getPrimaryKeys".equals(method.getName())) {
+                return metadataResultSet(List.of(List.of("ID")));
+            }
+            return defaultValue(method.getReturnType());
+        });
+        return proxy(Connection.class, (method, args) -> {
+            String name = method.getName();
+            if ("getMetaData".equals(name)) {
+                return metadata;
+            }
+            if ("prepareStatement".equals(name)) {
+                String sql = (String) args[0];
+                sqls.add(sql);
+                if (sql.contains("SYS.SYSCOLUMNS")) {
+                    return failingMetadataStatement("没有[SYSCOLUMNS]对象的查询权限");
+                }
+                if (sql.contains("DBMS_METADATA.GET_DDL")) {
+                    return metadataStatement(List.of(List.of(
+                        "CREATE TABLE \"APP\".\"USERS\"\n(\n\"ID\" INT IDENTITY(1, 1) NOT NULL)"
+                            + " STORAGE(ON \"MAIN\", CLUSTERBTR) ;"
+                    )));
+                }
+                if (sql.contains("ALL_CONS_COLUMNS")) {
+                    return metadataStatement(constraintRows);
+                }
+                if (sql.contains("ALL_TAB_COLUMNS")) {
+                    return metadataStatement(defaultColumnMetadataRows("id comment"));
+                }
+                return metadataStatement(List.of());
+            }
+            if ("close".equals(name) || "isClosed".equals(name)) {
+                return "isClosed".equals(name) ? Boolean.FALSE : null;
+            }
+            return defaultValue(method.getReturnType());
+        });
+    }
+
+    @Test
     void preservesCharacterLengthUnitsFromMetadata() {
         DamengAgent agent = new DamengAgent();
         TestSupport.setPrivateConnection(agent, metadataConnectionForColumns(List.of(
