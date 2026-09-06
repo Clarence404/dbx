@@ -461,7 +461,21 @@ public final class DamengAgent extends AbstractJdbcAgent {
         if (legacyJdbcMetadata) {
             return unchecked(() -> listJdbcSchemas().stream().map(DatabaseInfo::new).toList());
         }
-        return unchecked(() -> listVisibleUsers().stream().map(DatabaseInfo::new).toList());
+        // DM8 ALL_USERS is privilege-filtered: a normal user only sees itself, so prefer the
+        // full SYS.SYSOBJECTS catalog (mirroring listSchemas; newer/hardened builds require
+        // the SOI role) and fall back to ALL_USERS when the catalog is not readable.
+        return unchecked(() -> {
+            try {
+                return listVisibleSchemas().stream().map(DatabaseInfo::new).toList();
+            } catch (SQLException catalogError) {
+                try {
+                    return listVisibleUsers().stream().map(DatabaseInfo::new).toList();
+                } catch (Exception fallbackError) {
+                    catalogError.addSuppressed(fallbackError);
+                    throw catalogError;
+                }
+            }
+        });
     }
 
     @Override

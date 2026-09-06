@@ -53,6 +53,48 @@ class DamengAgentMetadataTest {
     }
 
     @Test
+    void listDatabasesPrefersFullSchemaCatalogOverPrivilegeFilteredAllUsers() {
+        DamengAgent agent = new DamengAgent();
+        List<String> sqls = new ArrayList<>();
+        TestSupport.setPrivateConnection(agent, databaseListConnection(sqls, null, null));
+
+        List<DatabaseInfo> databases = agent.listDatabases();
+
+        Assertions.assertEquals(List.of("APP", "E2E_NORMAL", "SYSDBA"), databases.stream().map(DatabaseInfo::getName).toList());
+        Assertions.assertEquals(1, sqls.size(), String.join("\n", sqls));
+        Assertions.assertTrue(sqls.get(0).contains("SYS.SYSOBJECTS"), sqls.get(0));
+        Assertions.assertTrue(sqls.stream().noneMatch(sql -> sql.contains("ALL_USERS")), String.join("\n", sqls));
+    }
+
+    @Test
+    void listDatabasesFallsBackToAllUsersWithoutSysObjectsPrivilege() {
+        DamengAgent agent = new DamengAgent();
+        List<String> sqls = new ArrayList<>();
+        TestSupport.setPrivateConnection(agent, databaseListConnection(sqls, "no SYS.SYSOBJECTS privilege", null));
+
+        List<DatabaseInfo> databases = agent.listDatabases();
+
+        // 无 SOI 角色的普通用户：ALL_USERS 受自主访问控制过滤，只能看到自己，按权限返回属正确行为。
+        Assertions.assertEquals(List.of("E2E_NORMAL"), databases.stream().map(DatabaseInfo::getName).toList());
+        Assertions.assertEquals(2, sqls.size(), String.join("\n", sqls));
+        Assertions.assertTrue(sqls.get(0).contains("SYS.SYSOBJECTS"), sqls.get(0));
+        Assertions.assertTrue(sqls.get(1).contains("ALL_USERS"), sqls.get(1));
+    }
+
+    @Test
+    void listDatabasesPreservesCatalogErrorWhenAllUsersFails() {
+        DamengAgent agent = new DamengAgent();
+        SQLException usersError = new SQLException("ALL_USERS query failed");
+        TestSupport.setPrivateConnection(agent, databaseListConnection(new ArrayList<>(), "no SYS.SYSOBJECTS privilege", usersError));
+
+        RuntimeException error = Assertions.assertThrows(RuntimeException.class, agent::listDatabases);
+
+        Assertions.assertEquals("no SYS.SYSOBJECTS privilege", error.getCause().getMessage());
+        Assertions.assertEquals(1, error.getCause().getSuppressed().length);
+        Assertions.assertSame(usersError, error.getCause().getSuppressed()[0]);
+    }
+
+    @Test
     void usesColumnCommentsMetadataQuery() {
         DamengAgent agent = new DamengAgent();
         TestSupport.setPrivateConnection(agent, JdbcMetadataSqlFake.connection());
@@ -1885,6 +1927,43 @@ class DamengAgentMetadataTest {
                     List.of("SYSDBA"),
                     List.of("APP")
                 ));
+            }
+            return defaultValue(method.getReturnType());
+        });
+    }
+
+    private static Connection databaseListConnection(
+        List<String> sqls,
+        String catalogError,
+        SQLException usersError
+    ) {
+        return proxy(Connection.class, (method, args) -> {
+            String name = method.getName();
+            if ("prepareStatement".equals(name)) {
+                String sql = (String) args[0];
+                sqls.add(sql);
+                if (sql.contains("SYS.SYSOBJECTS")) {
+                    if (catalogError != null) {
+                        return failingMetadataStatement(catalogError);
+                    }
+                    return metadataStatement(List.of(List.of("APP"), List.of("E2E_NORMAL"), List.of("SYSDBA")));
+                }
+                if (sql.contains("ALL_USERS")) {
+                    if (usersError != null) {
+                        return failingMetadataStatement(usersError);
+                    }
+                    return metadataStatement(List.of(List.of("E2E_NORMAL")));
+                }
+                throw new AssertionError("Unexpected SQL: " + sql);
+            }
+            if ("getMetaData".equals(name)) {
+                throw new AssertionError("listDatabases must not fall back to JDBC metadata getSchemas");
+            }
+            if ("close".equals(name)) {
+                return null;
+            }
+            if ("isClosed".equals(name)) {
+                return false;
             }
             return defaultValue(method.getReturnType());
         });
