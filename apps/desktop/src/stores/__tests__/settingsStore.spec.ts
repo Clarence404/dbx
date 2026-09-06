@@ -493,8 +493,10 @@ describe("normalizeMcpGlobalPolicy", () => {
       readOnly: false,
       allowDangerousSql: false,
       allowedConnectionIds: null,
+      allowedGroupIds: [],
       allowedToolNames: null,
       connectionPolicies: [],
+      groupPolicies: [],
       configured: false,
       queryTimeoutSecs: null,
     });
@@ -512,8 +514,10 @@ describe("normalizeMcpGlobalPolicy", () => {
       readOnly: true,
       allowDangerousSql: true,
       allowedConnectionIds: ["connection-1", "connection-2"],
+      allowedGroupIds: [],
       allowedToolNames: null,
       connectionPolicies: [],
+      groupPolicies: [],
       configured: true,
       queryTimeoutSecs: null,
     });
@@ -811,8 +815,10 @@ describe("settingsStore MCP policy persistence", () => {
       readOnly: true,
       allowDangerousSql: false,
       allowedConnectionIds: ["connection-1"],
+      allowedGroupIds: [],
       allowedToolNames: null,
       connectionPolicies: [],
+      groupPolicies: [],
       configured: true,
       queryTimeoutSecs: null,
     };
@@ -826,8 +832,10 @@ describe("settingsStore MCP policy persistence", () => {
       readOnly: false,
       allowDangerousSql: false,
       allowedConnectionIds: [],
+      allowedGroupIds: [],
       allowedToolNames: null,
       connectionPolicies: [],
+      groupPolicies: [],
       configured: true,
       queryTimeoutSecs: null,
     });
