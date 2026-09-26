@@ -7731,6 +7731,7 @@ const {
   copyWithPreference,
   previewWithPreference,
   canCopyWithExtractor,
+  exportWithExtractor,
   exportCsv,
   exportCurrentPageCsv,
   exportJson,
@@ -11771,7 +11772,7 @@ function filterSubmenu(): ContextMenuItem {
   });
 }
 
-function buildExtractorContextItems(): ContextMenuItem[] {
+function buildExtractorContextItems(destination: "copy" | "export" = "copy"): ContextMenuItem[] {
   const items: ContextMenuItem[] = [];
   let separatorPending = false;
   for (const extractor of DATA_GRID_COPY_EXTRACTOR_IDS) {
@@ -11784,21 +11785,21 @@ function buildExtractorContextItems(): ContextMenuItem[] {
     const extractorItems: ContextMenuItem[] = [];
     if (extractor === "sql-inserts") {
       for (const excludePrimaryKeysFromInsert of [false, true]) {
-        if (selected && settingsStore.editorSettings.dataGridExtractorOptions.sql.excludePrimaryKeysFromInsert === excludePrimaryKeysFromInsert) continue;
+        if (destination === "copy" && selected && settingsStore.editorSettings.dataGridExtractorOptions.sql.excludePrimaryKeysFromInsert === excludePrimaryKeysFromInsert) continue;
         const options = sqlInsertExtractorOptions(excludePrimaryKeysFromInsert);
         extractorItems.push({
           label: t(excludePrimaryKeysFromInsert ? "grid.copyExtractorSqlInsertsWithoutPrimaryKeys" : "grid.copyExtractorSqlInsertsWithPrimaryKeys"),
-          action: () => void copyWithExtractor(extractor, options),
+          action: () => void (destination === "copy" ? copyWithExtractor(extractor, options) : exportWithExtractor(extractor, options)),
           disabled: !canCopyWithExtractor(extractor, options),
         });
       }
-    } else if (!selected) {
+    } else if (destination === "export" || !selected) {
       extractorItems.push({
         label: copyExtractorLabel(extractor),
         action: () => {
-          // One-off copy as the chosen format; do NOT persist it as the default —
+          // One-off use of the chosen format; do NOT persist it as the default —
           // the saved default stays controlled by the toolbar/settings dialog.
-          void copyWithExtractor(extractor);
+          void (destination === "copy" ? copyWithExtractor(extractor) : exportWithExtractor(extractor));
         },
         disabled: !canCopyWithExtractor(extractor),
       });
@@ -11901,6 +11902,10 @@ function exportSubmenu(): ContextMenuItem {
       { label: t("grid.exportSelectedRowsSql"), action: exportSelectedRowsSql },
       { label: t("grid.exportSelectedRowsTxt"), action: exportSelectedRowsTxt },
     );
+  }
+  const extractorItems = buildExtractorContextItems("export");
+  if (extractorItems.length > 0) {
+    items.push({ label: "", separator: true }, ...extractorItems);
   }
   return { label: t("grid.export"), icon: Upload, children: items };
 }
