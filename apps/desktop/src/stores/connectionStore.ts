@@ -8335,7 +8335,7 @@ export const useConnectionStore = defineStore("connection", () => {
     }
   }
 
-  async function loadColumns(connectionId: string, database: string, table: string, schema?: string, nodeId?: string, catalog?: string) {
+  async function loadColumns(connectionId: string, database: string, table: string, schema?: string, nodeId?: string, catalog?: string, options?: { preserveExpansion?: boolean }) {
     const parentId = nodeId ?? (schema ? `${connectionId}:${database}:${schema}:${table}:__columns` : `${connectionId}:${database}:${table}:__columns`);
     const node = findNode(treeNodes.value, parentId);
     if (!node) return;
@@ -8368,7 +8368,7 @@ export const useConnectionStore = defineStore("connection", () => {
             };
           }),
         );
-        targetNode.isExpanded = true;
+        if (!options?.preserveExpansion) targetNode.isExpanded = true;
         return;
       }
       const querySchema = metadataQuerySchema(connectionId, database, schema);
@@ -8391,7 +8391,7 @@ export const useConnectionStore = defineStore("connection", () => {
           meta: col,
         })),
       );
-      targetNode.isExpanded = true;
+      if (!options?.preserveExpansion) targetNode.isExpanded = true;
     } catch (e) {
       recordMetadataLoadError(connectionId, e, load);
       throw e;
@@ -8911,6 +8911,26 @@ export const useConnectionStore = defineStore("connection", () => {
       await refreshDatabaseTreeNode(connectionId, database, catalog);
     }
     void loadSidebarTableStorage({ connectionId, database, schema: schema || "" }, { force: true });
+  }
+
+  // Saving structure does not replace existing sidebar column nodes. Reload only
+  // materialized groups so their labels and DDL metadata stay current, including
+  // groups the user has since collapsed, without opening new branches.
+  async function refreshTableColumnsTree(connectionId: string, database: string, table: string, schema?: string, catalog?: string) {
+    if (!connectedIds.value.has(connectionId)) return;
+    const querySchema = metadataQuerySchema(connectionId, database, schema);
+    const groups = findTreeNodes(
+      treeNodes.value,
+      (node) =>
+        node.type === "group-columns" &&
+        node.connectionId === connectionId &&
+        node.database === database &&
+        node.tableName === table &&
+        metadataQuerySchema(connectionId, database, node.schema) === querySchema &&
+        (node.catalog || "") === (catalog || "") &&
+        !!(node.isExpanded || node.isLoading || node.children?.length || isTreeNodeChildrenLoaded(node.id)),
+    );
+    await Promise.all(groups.map((node) => loadColumns(connectionId, database, table, node.schema, node.id, node.catalog, { preserveExpansion: true })));
   }
 
   function isSchemaAwareDatabase(connectionId: string): boolean {
@@ -11424,6 +11444,7 @@ export const useConnectionStore = defineStore("connection", () => {
     refreshConnectionTreeNode,
     refreshDatabaseTreeNode,
     refreshObjectListTreeNode,
+    refreshTableColumnsTree,
     connectedIds,
     connectingIds,
     isConnectionClosedByUser,
