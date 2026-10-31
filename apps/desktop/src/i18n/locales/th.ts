@@ -9524,6 +9524,8 @@ export default withEnglishFallback({
     formatParquet: "Parquet",
     formatParquetDescription: "File Parquet สำหรับ DuckDB",
     parquetOnlyDuckdb: "การนำเข้า Parquet รองรับเฉพาะการเชื่อมต่อ DuckDB",
+    sqlScriptHint: 'ไฟล์นี้ไม่ใช่สคริปต์ INSERT สำหรับตารางเดียว (การส่งออกทั้งฐานข้อมูลมักมีคำสั่ง CREATE และ INSERT ของหลายตาราง) โปรดใช้ "เรียกใช้ไฟล์ SQL" ซึ่งประมวลผลสคริปต์แบบสตรีมทีละส่วนและเหมาะกับไฟล์ขนาดใหญ่',
+    sqlScriptRun: "เรียกใช้ไฟล์ SQL",
     formatNb3: "ไฟล์สำรอง Navicat",
     formatNb3Description: "กู้คืนไฟล์ .nb3 ลงในฐานข้อมูลนี้",
     previewRows: "ตัวอย่าง Rows",

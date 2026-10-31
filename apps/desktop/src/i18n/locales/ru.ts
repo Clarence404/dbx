@@ -9193,6 +9193,8 @@ export default withEnglishFallback({
     formatParquet: "Parquet",
     formatParquetDescription: "Файлы Parquet для DuckDB",
     parquetOnlyDuckdb: "Импорт Parquet поддерживается только для подключений DuckDB",
+    sqlScriptHint: "Этот файл не является INSERT-скриптом для одной таблицы (полный экспорт базы данных обычно содержит операторы CREATE и INSERT для многих таблиц). Запустите его через «Выполнить SQL-файл» — он обрабатывает скрипт потоком по частям и подходит для больших файлов.",
+    sqlScriptRun: "Выполнить SQL-файл",
     formatNb3: "Резервная копия Navicat",
     formatNb3Description: "Восстановить архив .nb3 в эту базу данных",
     previewRows: "Строк предпросмотра",

@@ -6641,6 +6641,8 @@ export default withEnglishFallback({
     formatParquet: "Parquet",
     formatParquetDescription: "DuckDB üçün Parquet faylları",
     parquetOnlyDuckdb: "Parquet idxalı yalnız DuckDB bağlantıları üçün dəstəklənir",
+    sqlScriptHint: 'Bu fayl tək cədvəl üçün INSERT skripti deyil (bütün verilənlər bazasının ixracı adətən çoxlu cədvəl üçün CREATE və INSERT ifadələrini ehtiva edir). Skripti hissə-hissə axınla icra edən və böyük fayllara uyğun olan "SQL faylını icra et" ilə işə salın.',
+    sqlScriptRun: "SQL faylını icra et",
     formatNb3: "Navicat ehtiyat nüsxəsi",
     formatNb3Description: ".nb3 arxivini bu verilənlər bazasına bərpa edin",
     previewRows: "Sətirlərin önbaxışı",

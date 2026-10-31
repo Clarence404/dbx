@@ -6521,6 +6521,8 @@ export default withEnglishFallback({
     formatParquet: "Parquet",
     formatParquetDescription: "DuckDB için Parquet dosyaları",
     parquetOnlyDuckdb: "Parquet içe aktarma yalnızca DuckDB bağlantılarında desteklenir",
+    sqlScriptHint: 'Bu dosya tek tablolu bir INSERT betiği değil (tüm veritabanı dışa aktarımı genellikle birçok tablo için CREATE ve INSERT ifadeleri içerir). Betiği parçalar halinde akış olarak çalıştıran ve büyük dosyalara uygun olan "SQL Dosyasını Çalıştır" ile çalıştırın.',
+    sqlScriptRun: "SQL Dosyasını Çalıştır",
     formatNb3: "Navicat yedeği",
     formatNb3Description: ".nb3 arşivini bu veritabanına geri yükleyin",
     previewRows: "Satırları önizle",

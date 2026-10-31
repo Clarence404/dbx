@@ -8984,6 +8984,8 @@ export default {
     formatParquet: "Parquet",
     formatParquetDescription: "Parquet files for DuckDB",
     parquetOnlyDuckdb: "Parquet import is only supported for DuckDB connections",
+    sqlScriptHint: 'This file is not a single-table INSERT script (a full-database export usually contains CREATE and INSERT statements for many tables). Run it with "Execute SQL File" instead, which streams the script in chunks and suits large files.',
+    sqlScriptRun: "Execute SQL File",
     formatNb3: "Navicat backup",
     formatNb3Description: "Restore a .nb3 archive into this database",
     previewRows: "Preview rows",

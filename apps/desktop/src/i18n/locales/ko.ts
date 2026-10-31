@@ -7749,6 +7749,8 @@ export default withEnglishFallback({
     formatParquet: "Parquet",
     formatParquetDescription: "DuckDB용 Parquet 파일",
     parquetOnlyDuckdb: "Parquet 가져오기는 DuckDB 연결에서만 지원됩니다",
+    sqlScriptHint: '이 파일은 단일 테이블 INSERT 스크립트가 아닙니다(전체 데이터베이스 내보내기에는 보통 여러 테이블의 CREATE 및 INSERT 문이 포함됩니다). 대용량 파일에도 적합한 스트리밍 방식의 "SQL 파일 실행"을 사용하세요.',
+    sqlScriptRun: "SQL 파일 실행",
     formatNb3: "Navicat 백업",
     formatNb3Description: ".nb3 아카이브를 이 데이터베이스로 복원합니다",
     previewRows: "미리보기 행",

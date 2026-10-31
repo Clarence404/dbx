@@ -8950,6 +8950,8 @@ export default withEnglishFallback({
     formatParquet: "Parquet",
     formatParquetDescription: "DuckDB 的 Parquet 文件",
     parquetOnlyDuckdb: "Parquet 导入仅支持 DuckDB 连接",
+    sqlScriptHint: "该文件不是单表 INSERT 脚本（整库导出的 SQL 通常包含多张表的建表和插入语句）。请改用「执行 SQL 文件」，它会流式分块执行，适合大文件。",
+    sqlScriptRun: "执行 SQL 文件",
     formatNb3: "Navicat 备份",
     formatNb3Description: "将 .nb3 归档恢复到此数据库",
     previewRows: "预览行数",

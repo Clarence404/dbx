@@ -7306,6 +7306,8 @@ export default withEnglishFallback({
     formatParquet: "Parquet",
     formatParquetDescription: "File Parquet untuk DuckDB",
     parquetOnlyDuckdb: "Impor Parquet hanya didukung untuk koneksi DuckDB",
+    sqlScriptHint: 'File ini bukan skrip INSERT untuk satu tabel (ekspor seluruh database biasanya berisi pernyataan CREATE dan INSERT untuk banyak tabel). Jalankan dengan "Eksekusi File SQL", yang memproses skrip secara streaming per bagian dan cocok untuk file besar.',
+    sqlScriptRun: "Eksekusi File SQL",
     formatNb3: "Cadangan Navicat",
     formatNb3Description: "Pulihkan arsip .nb3 ke database ini",
     previewRows: "Pratinjau baris",
