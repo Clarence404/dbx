@@ -23,6 +23,7 @@ mod webview2_legacy_css;
 mod webview2_preflight;
 #[cfg(any(target_os = "windows", test))]
 mod webview2_recovery;
+mod webview_memory;
 mod window_geometry;
 mod window_state_guard;
 #[cfg(target_os = "windows")]
@@ -765,6 +766,7 @@ pub(crate) fn hide_main_window_for_close<R: tauri::Runtime>(app: &tauri::AppHand
     }
 
     let _ = window.hide();
+    webview_memory::sync(app);
 }
 
 pub(crate) fn request_app_close<R: tauri::Runtime>(app: &tauri::AppHandle<R>, target: &str) {
@@ -2278,6 +2280,12 @@ pub fn run() {
                     }
                 }
                 return;
+            }
+            if window.label() == "main"
+                && matches!(event, tauri::WindowEvent::Focused(_) | tauri::WindowEvent::Resized(_))
+            {
+                // Minimize / hide-to-tray / restore all surface as a focus or size change.
+                webview_memory::sync(window.app_handle());
             }
             if let tauri::WindowEvent::Destroyed = event {
                 // A webview that no longer exists must not leave drop grants
