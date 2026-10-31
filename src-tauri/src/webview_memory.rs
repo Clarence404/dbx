@@ -34,9 +34,8 @@ mod windows_impl {
 
     fn apply(webview: &tauri::webview::PlatformWebview, low: bool) -> Result<(), String> {
         // SAFETY: `with_webview` runs this closure on the WebView2 UI thread, which the COM
-        // contract requires. `ICoreWebView2_19` ships with newer WebView2 runtimes (the SDK
-        // introduced it in 1.0.1823.32); on a runtime without it the cast fails and the caller only
-        // logs, leaving the default memory behavior unchanged.
+        // contract requires. `ICoreWebView2_19` needs runtime >= 114; older runtimes fail the
+        // cast and the caller only logs, leaving the default memory behavior unchanged.
         unsafe {
             let core = webview.controller().CoreWebView2().map_err(|error| error.to_string())?;
             let core19 = core.cast::<ICoreWebView2_19>().map_err(|error| error.to_string())?;
