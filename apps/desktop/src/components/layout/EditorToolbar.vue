@@ -34,7 +34,7 @@ import {
   UserRound,
   Copy,
 } from "@lucide/vue";
-import { supportsInsertValueHints } from "@/lib/editor/codemirrorInsertValueHints";
+import { supportsInsertValueHints } from "@/lib/sql/insertValueHints";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -60,7 +60,6 @@ import { productionContextForDatabase } from "@/lib/database/productionSafety";
 import { formatShortcutDisplay, formatShortcutTooltip } from "@/lib/editor/shortcutDisplay";
 import { resolveNextEditorToolbarTier, type EditorToolbarTier } from "@/lib/tabs/editorToolbarLayout";
 import { canSaveSqlTab } from "@/lib/tabs/sqlTabSaveTarget";
-import { looksLikeDmlStatement } from "@/lib/sql/dmlChangePreview";
 import { canFormatSqlForDatabaseType } from "@/lib/sql/sqlFormatter";
 import { copyToClipboard } from "@/lib/common/clipboard";
 import { useToast } from "@/composables/useToast";
@@ -73,7 +72,9 @@ import { findConnectionGroupPath } from "@/lib/sidebar/sidebarLayout";
 const props = defineProps<{
   activeTab: QueryTab;
   activeConnection?: ConnectionConfig;
-  executableSql: string;
+  hasExecutableSql: boolean;
+  /** The executable SQL contains a DML statement; fallback for the preview button when `canPreviewChanges` is not provided. */
+  executableSqlMayContainDml: boolean;
   /** 来自 QueryEditor 的实时“当前语句是否为可预览 DML”信号；未提供时退回可编辑文档启发式。 */
   canPreviewChanges?: boolean;
   explainMode?: string;
@@ -364,11 +365,7 @@ const executeShortcutDisplay = computed(() => formatShortcutDisplay(settingsStor
 const executeShortcutTooltip = computed(() => t("toolbar.executeShortcut", { shortcut: executeShortcutDisplay.value }));
 const executeAllShortcutTooltip = computed(() => formatShortcutTooltip(t("toolbar.executeAllSql"), settingsStore.editorSettings.shortcuts.executeAllSql));
 const executeInNewResultTabTooltip = computed(() => formatShortcutTooltip(t("settings.shortcutExecuteSqlInNewResultTab"), settingsStore.editorSettings.shortcuts.executeSqlInNewResultTab));
-// executableSql 在无选区时可能是整篇文档；只要有 DML 语句出现就显示预览按钮，
-// 具体"当前语句"由编辑器（QueryEditor）按执行模式解析。
-const DML_KEYWORD_RE = /(^|\s)(update|insert|delete)\s/i;
-const canPreviewDml = computed(() => looksLikeDmlStatement(props.executableSql) || DML_KEYWORD_RE.test(props.executableSql));
-const previewButtonVisible = computed(() => props.canPreviewChanges ?? canPreviewDml.value);
+const previewButtonVisible = computed(() => props.canPreviewChanges ?? props.executableSqlMayContainDml);
 // DM calls it autotrace, Postgres EXPLAIN ANALYZE, SQL Server the actual execution
 // plan (SET STATISTICS XML); all three execute the statement.
 const supportsExplainAnalyze = computed(() => {
@@ -446,7 +443,7 @@ const canMultiExecute = computed(() => {
   if (!supportsQueryExecution(props.activeConnection?.db_type)) return false;
   if (props.activeTab.isExecuting || props.activeTab.isExplaining || props.activeTab.isCancelling) return false;
   if (isTransactionActive.value) return false;
-  return !!props.executableSql.trim();
+  return props.hasExecutableSql;
 });
 
 const schemaSelectorAvailable = computed(() => {
@@ -640,7 +637,7 @@ defineExpose({
             size="icon"
             class="h-6 w-6"
             :class="executeButtonClass"
-            :disabled="activeTab.isCancelling || activeTab.isExplaining || (!activeTab.isExecuting && !executableSql.trim())"
+            :disabled="activeTab.isCancelling || activeTab.isExplaining || (!activeTab.isExecuting && !hasExecutableSql)"
             @mousedown.prevent="onExecutePointerDown"
             @click="onExecuteClick"
           >
@@ -681,7 +678,7 @@ defineExpose({
             variant="ghost"
             size="icon"
             class="h-6 w-6 text-violet-600 hover:bg-violet-500/10 hover:text-violet-700 dark:text-violet-300 dark:hover:text-violet-200"
-            :disabled="activeTab.isExecuting || activeTab.isCancelling || activeTab.isExplaining || !executableSql.trim()"
+            :disabled="activeTab.isExecuting || activeTab.isCancelling || activeTab.isExplaining || !hasExecutableSql"
             :aria-label="t('settings.shortcutExecuteSqlInNewResultTab')"
             @mousedown.prevent="onExecutePointerDown"
             @click="onExecuteInNewResultTabClick"
@@ -706,7 +703,7 @@ defineExpose({
             size="icon"
             class="h-6 w-6"
             :class="activeTab.isExplaining ? '' : 'text-violet-600 hover:bg-violet-500/10 hover:text-violet-700 dark:text-violet-300 dark:hover:text-violet-200'"
-            :disabled="activeTab.isExecuting || (!activeTab.isExplaining && !executableSql.trim())"
+            :disabled="activeTab.isExecuting || (!activeTab.isExplaining && !hasExecutableSql)"
             @click="activeTab.isExplaining ? emit('cancel') : emit('explain')"
           >
             <Square v-if="activeTab.isExplaining" class="h-3.5 w-3.5 fill-current" />

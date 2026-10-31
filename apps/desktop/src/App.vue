@@ -1096,6 +1096,10 @@ const executableSql = computed(() => {
     : "";
 });
 
+// Descendants only need to know whether there is anything to run. Handing them the SQL text itself
+// would re-render the whole editor shell on every keystroke.
+const hasExecutableSql = computed(() => executableSql.value.trim().length > 0);
+
 async function resolveActiveExecutableSql(snapshot?: SqlExecutionSnapshot, executionTab?: QueryTab) {
   const tab = executionTab ?? activeTab.value;
   if (!tab) return "";
@@ -5656,13 +5660,11 @@ onUnmounted(() => {
                     :can-detach-tabs="isDesktop"
                     :detached-drop-target="detachedDropTargetTabId !== null"
                     @detach-tab="detachTab"
-                    :executable-sql="executableSql"
+                    :has-executable-sql="hasExecutableSql"
                     :active-output-view="activeOutputView"
                     :format-sql-request="formatSqlRequest"
                     :compress-sql-request="compressSqlRequest"
                     :keyword-case-request="keywordCaseRequest"
-                    :selected-sql="selectedSql"
-                    :cursor-pos="cursorPos"
                     :block-dangerous-redis-commands="blockDangerousRedisCommands"
                     :zen-mode="isZenMode"
                     @update:active-output-view="
